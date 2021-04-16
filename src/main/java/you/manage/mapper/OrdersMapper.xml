@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="you.manage.dao.OrdersMapper">
+    <select id="findList" resultType="orders" parameterType="orders">
+        SELECT
+        o.orderId,
+        o.fromChainId,
+        o.toChainId,
+        o.sender,
+        o.recipient,
+        o.amount,
+        o.state,
+        o.fromHash,
+        o.fromConfirm,
+        o.fromHeight,
+        o.toHash,
+        o.toConfirm,
+        o.toHeight,
+        o.datestamp,
+        o.created
+    FROM
+        `orders` o
+    WHERE
+        sender = #{orders.sender}
+    ORDER BY o.id desc;
+    </select>
+</mapper>
