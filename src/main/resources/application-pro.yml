@@ -1,5 +1,5 @@
 server:
-  port: 9090
+  port: 9010
 spring:
   datasource:
     dynamic:
@@ -18,18 +18,20 @@ spring:
         # 数据源-1，名称为 primary
         primary:
           username: root
-          password: 123456
+          password: 111111
           driver-class-name: com.mysql.cj.jdbc.Driver
-          url: jdbc:mysql://wbf-youswap.chws8gmrv6pa.ap-southeast-1.rds.amazonaws.com:4981/chain_bridge?useUnicode=true&characterEncoding=UTF-8&autoReconnect=true&useJDBCCompliantTimezoneShift=true&useLegacyDatetimeCode=false&serverTimezone=UTC
+          url: jdbc:mysql://127.0.0.1:3306/chain_bridge?useUnicode=true&characterEncoding=UTF-8&autoReconnect=true&useJDBCCompliantTimezoneShift=true&useLegacyDatetimeCode=false&serverTimezone=GMT%2B8
   redis:
-    cluster:
-      nodes: 10.85.36.158:6383,10.85.36.158:6383,10.85.36.77:6384,10.85.36.77:6387,10.85.36.80:6385,10.85.36.80:6388
-      max-redirects: 6
-    password:
+    port: 6379
+    host: 127.0.0.1
+    password: 111111
+    database: 0
+    timeout: 3000000
   rabbitmq:
-    addresses: 10.85.36.63:5672,10.85.36.78:5672
-    username:
-    password:
+    host: 127.0.0.1
+    port: 5672
+    username: 111111
+    password: 111111
     virtualHost: /
 #mybatis plus 设置
 mybatis-plus:
