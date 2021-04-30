@@ -72,9 +72,15 @@ public class OrdersServiceImpl extends ServiceImpl<OrdersMapper, Orders> impleme
     }
 
     @Override
-    public List<OrderList> findList(String sender) {
+    public List<OrderList> findList(String sender,String fromChainId,String toChainId) {
         Orders orders = new Orders();
         orders.setSender(sender);
+        if(StringUtils.isNotBlank(fromChainId)){
+            orders.setFromChainId(Integer.valueOf(fromChainId));
+        }
+        if(StringUtils.isNotBlank(toChainId)){
+            orders.setToChainId(Integer.valueOf(toChainId));
+        }
         List<Orders> list = this.baseMapper.findList(orders);
         List<OrderList> newList = new ArrayList<OrderList>();
         for(Orders order:list){
@@ -124,9 +130,11 @@ public class OrdersServiceImpl extends ServiceImpl<OrdersMapper, Orders> impleme
     }
 
     @Override
-    public Orders getOrderId(Long orderId) {
+    public Orders getOrderId(Long orderId, Integer fromChainId,Integer toChainId) {
         QueryWrapper<Orders> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("orderId",orderId);
+        queryWrapper.eq("fromChainId",fromChainId);
+        queryWrapper.eq("toChainId",toChainId);
         Orders orders = this.baseMapper.selectOne(queryWrapper);
         return orders;
     }
@@ -157,7 +165,7 @@ public class OrdersServiceImpl extends ServiceImpl<OrdersMapper, Orders> impleme
             String toChainId = ApiChain.getRefMethod(str.substring(64,128),"uint");
             String amount = ApiChain.getRefMethod(str.substring(128),"uint");
             //判断订单是否已经存在
-            Orders orders = this.getOrderId(Long.valueOf(orderId));
+            Orders orders = this.getOrderId(Long.valueOf(orderId),chainId,Integer.valueOf(toChainId));
             if(orders == null){
                 Common common = commonService.findOneCommon();
                 //订单入库
@@ -191,7 +199,7 @@ public class OrdersServiceImpl extends ServiceImpl<OrdersMapper, Orders> impleme
                 order.setFootprint(footprintKey);
                 this.createOrders(order);
             }else{
-                log.info(orderId+"订单已存在");
+                log.info(orderId+"=订单已存在；fromChainId="+chainId+"==toChainId="+toChainId);
             }
         }catch (Exception e){
             e.printStackTrace();
@@ -244,7 +252,20 @@ public class OrdersServiceImpl extends ServiceImpl<OrdersMapper, Orders> impleme
                 String strProof = common.getPassword()+AesEncryptUtils.PASSWORDKEY;
                 String profKey = AesEncryptUtils.decrypt(orders.getReserve(),strProof);
 
-                TransferModel transferModel = createTransferModel(config.getContractAddress(),orders.getToChainId(),nonce,ContractConstant.consumeOrder);
+                //判断目标链合约地址
+                String contractAddress= config.getContractAddress();//ETH-HECO HECO-BSC
+                if(newOrders.getFromChainId()==1 && newOrders.getToChainId() == 3){ //ETH-BSC
+                    contractAddress = config.getBridgeAddress();
+                }
+                /*if(newOrders.getFromChainId()==1 && newOrders.getToChainId() == 2){ //ETH-HECO
+                    contractAddress = config.getContractAddress();
+                }else if(newOrders.getFromChainId()==1 && newOrders.getToChainId() == 3){ //ETH-BSC
+                    contractAddress = config.getBridgeAddress();
+                }else if(newOrders.getFromChainId()==2 && newOrders.getToChainId() == 3){ //HECO-BSC
+                    contractAddress = config.getContractAddress();
+                }*/
+
+                TransferModel transferModel = createTransferModel(contractAddress,orders.getToChainId(),nonce,ContractConstant.consumeOrder);
                 List<Type> inputArgs = new ArrayList<>();
                 // 构建输入参数
                 inputArgs.add(new Uint256(orders.getOrderId()));
@@ -267,7 +288,6 @@ public class OrdersServiceImpl extends ServiceImpl<OrdersMapper, Orders> impleme
                 bos.write(proof);
                 inputArgs.add(new Bytes32(HashUtil.sha3(bos.toByteArray())));
                 //判断数据是否被篡改
-
                 String footprint = ByteUtil.toHexString(HashUtil.sha3(bos.toByteArray()));
                 String footprintKey = AesEncryptUtils.decrypt(orders.getFootprint(),strProof);
                 if(footprint.equalsIgnoreCase(footprintKey)){
@@ -293,7 +313,7 @@ public class OrdersServiceImpl extends ServiceImpl<OrdersMapper, Orders> impleme
                         redisTemplate.opsForValue().set(redisNonce,String.valueOf(nonceStr));
                     }
                 }else{
-                    log.info("orderId="+orderId+"************数据异常");
+                    log.info("orderId="+orderId+"************数据已被篡改");
                 }
             }catch (Exception e){
                 e.printStackTrace();
@@ -307,18 +327,16 @@ public class OrdersServiceImpl extends ServiceImpl<OrdersMapper, Orders> impleme
      * @param transaction
      */
     @Override
-    public void orderConsumed(Log logs, EthBlock.TransactionObject transaction) {
+    public void orderConsumed(Log logs, EthBlock.TransactionObject transaction,Integer chainId) {
          try{
              String data = logs.getData();
              String str = data.substring(2);
              String orderId = ApiChain.getRefMethod(str.substring(0,64),"uint");
-             //String toChainId = ApiChain.getRefMethod(str.substring(64,128),"uint");
+             String fromChain = ApiChain.getRefMethod(str.substring(64,128),"uint");
              //String address = ApiChain.getRefMethod(str.substring(128,192),"address");
              //String amount = ApiChain.getRefMethod(str.substring(192),"uint");
              //改变交易状态
-             QueryWrapper<Orders> queryWrapper = new QueryWrapper<>();
-             queryWrapper.eq("orderId",orderId);
-             Orders orders = this.baseMapper.selectOne(queryWrapper);
+             Orders orders = this.getOrderId(Long.valueOf(orderId),Integer.valueOf(fromChain),chainId);
              if(orders!=null){
                  orders.setToConfirm(1);
                  orders.setState(4);
@@ -339,11 +357,12 @@ public class OrdersServiceImpl extends ServiceImpl<OrdersMapper, Orders> impleme
      * @param transaction
      */
     @Override
-    public void completeOrder(Log logs, EthBlock.TransactionObject transaction) {
+    public void completeOrder(Log logs, EthBlock.TransactionObject transaction,Integer chainId) {
         String data = logs.getData();
         String str = data.substring(2);
         String orderId = ApiChain.getRefMethod(str.substring(0,64),"uint");
-        Orders orders = this.getOrderId(Long.valueOf(orderId));
+        String toChain = ApiChain.getRefMethod(str.substring(64,128),"uint");
+        Orders orders = this.getOrderId(Long.valueOf(orderId),chainId,Integer.valueOf(toChain));
         if(orders!=null){
             orders.setState(7);
             orders.setCompleteConfirm(1);
@@ -361,11 +380,12 @@ public class OrdersServiceImpl extends ServiceImpl<OrdersMapper, Orders> impleme
      * @param transaction
      */
     @Override
-    public void orderCanceled(Log logs, EthBlock.TransactionObject transaction) {
+    public void orderCanceled(Log logs, EthBlock.TransactionObject transaction,Integer chainId) {
         String data = logs.getData();
         String str = data.substring(2);
         String orderId = ApiChain.getRefMethod(str.substring(0,64),"uint");
-        Orders orders = this.getOrderId(Long.valueOf(orderId));
+        String toChain = ApiChain.getRefMethod(str.substring(64,128),"uint");
+        Orders orders = this.getOrderId(Long.valueOf(orderId),chainId,Integer.valueOf(toChain));
         if(orders!=null){
             orders.setState(9);
             orders.setCancelHash(transaction.getHash());
@@ -376,6 +396,9 @@ public class OrdersServiceImpl extends ServiceImpl<OrdersMapper, Orders> impleme
         }
     }
 
+    /**
+     * 跨链交易--确认数
+     */
     @Override
     public void consumeOrderConfirm(){
         QueryWrapper<Orders> queryWrapper = new QueryWrapper<>();
@@ -501,7 +524,7 @@ public class OrdersServiceImpl extends ServiceImpl<OrdersMapper, Orders> impleme
      * 查询跨链完成的订单
      */
     @Override
-    public void completeOrder() {
+    public void completeCrossOrder() {
         QueryWrapper<Orders> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("state",5);
         List<Orders> list = this.baseMapper.selectList(queryWrapper);
@@ -533,7 +556,15 @@ public class OrdersServiceImpl extends ServiceImpl<OrdersMapper, Orders> impleme
                 nonce = ApiChain.getNonce(common.getAddress(),chainRpc).toString();
                 redisTemplate.opsForValue().set(redisNonce,nonce);
             }
-            TransferModel transferModel = createTransferModel(config.getContractAddress(),orders.getFromChainId(),nonce,ContractConstant.completeOrder);
+            //查询发起链合约地址
+            String contractAddress;
+            if(newOrders.getFromChainId()==1 && newOrders.getToChainId() == 2 ){ //ETH-HECO
+                contractAddress = config.getContractAddress();
+            }else{
+                contractAddress = config.getBridgeAddress();  //HECO-BSC ETH-BSC
+            }
+
+            TransferModel transferModel = createTransferModel(contractAddress,orders.getFromChainId(),nonce,ContractConstant.completeOrder);
             List<Type> inputArgs = new ArrayList<>();
             // 构建输入参数
             inputArgs.add(new Uint256(orders.getOrderId()));
@@ -571,12 +602,13 @@ public class OrdersServiceImpl extends ServiceImpl<OrdersMapper, Orders> impleme
     public void failOrder(EthBlock.TransactionObject transaction, Integer chainId) {
         //判断是什么交易失败
         String methodId = transaction.getInput().substring(0,10);
+        String toChainId = ApiChain.getRefMethod(transaction.getInput().substring(10,74),"uint");
         if(methodId.equalsIgnoreCase(ContractConstant.exchangeMethodId)){
             //失败订单入库
             Orders order = new Orders();
             order.setOrderId(Long.valueOf(0));
             order.setFromChainId(chainId);
-            order.setToChainId(2);
+            order.setToChainId(Integer.valueOf(toChainId));
             order.setSender(transaction.getFrom());
             order.setRecipient(transaction.getFrom());
             order.setAmount(new BigDecimal(0));

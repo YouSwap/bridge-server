@@ -64,6 +64,16 @@ public class Config implements Serializable {
     @TableField("contractAddress")
     private String contractAddress;
 
+    //ETH_contractAddress-HECO_contractAddress
+    //HECO_bridgeAddress-BSC_contractAddress
+    //ETH_bridgeAddress-BSC_bridgeAddress
+
+    /**
+     * 交互合约地址
+     */
+    @TableField("bridgeAddress")
+    private String bridgeAddress;
+
     /**
      * 0=已关闭，1=运行中
      */

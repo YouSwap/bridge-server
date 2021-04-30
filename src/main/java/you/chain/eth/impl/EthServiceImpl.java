@@ -2,6 +2,7 @@ package you.chain.eth.impl;
 
 import lombok.extern.slf4j.Slf4j;
 import net.sf.json.JSONObject;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -43,7 +44,7 @@ public class EthServiceImpl implements EthService {
         //判断是否已经开启跨链
         boolean start = commonService.startMonitor();
         if(start){
-            //判断ETH链是否已经打开
+            //判断链是否已经打开
             boolean openState = configService.startMonitor(chainId);
             if(openState){
                 startMonitor(chainId,chainName);
@@ -59,7 +60,7 @@ public class EthServiceImpl implements EthService {
             Config config = blockService.getConfigBlock(chainId);
             Web3j chainRpc = Web3j.build(new HttpService(config.getChainRpc()));
             //先检查是否有之前null的区块
-            this.checkBlockNullData(chainId,chainName,config.getContractAddress(),chainRpc);
+            this.checkBlockNullData(chainId,chainName,config,chainRpc);
             //数据库初始高度 最后一次扫快的区块高度 +1
             Long initHeight = config.getInitHeight();
             //获取区块链当前取块高度
@@ -83,7 +84,7 @@ public class EthServiceImpl implements EthService {
                     blockNullList.add(String.valueOf(i));
                     continue;
                 }
-                this.getBlockTransaction(block,queryHeight,config.getContractAddress(),chainRpc,chainId);
+                this.getBlockTransaction(block,config,chainRpc,chainId);
             }
             //保存获取空的区块下次循环在遍历
             if(blockNullList.size()>0){
@@ -97,8 +98,7 @@ public class EthServiceImpl implements EthService {
      * 解析区块中的交易
      * @param block
      */
-    public void getBlockTransaction(EthBlock.Block block,BigInteger blockHeight,
-                                    String contractAddress,Web3j chainRpc,Integer chainId) throws Exception {
+    public void getBlockTransaction(EthBlock.Block block,Config config,Web3j chainRpc,Integer chainId) throws Exception {
         List<EthBlock.TransactionResult> transactions = block.getTransactions();
         int num = 0;
         for (EthBlock.TransactionResult tx : transactions) {
@@ -106,7 +106,13 @@ public class EthServiceImpl implements EthService {
             //接收者地址
             String to = jsonObject.getString("to");
             EthBlock.TransactionObject transaction = (EthBlock.TransactionObject) tx;
-            if(to.equalsIgnoreCase(contractAddress)){
+            boolean tranBool = false;
+            if(to.equalsIgnoreCase(config.getContractAddress())){
+                tranBool = true;
+            }else if(StringUtils.isNotBlank(config.getBridgeAddress()) && to.equalsIgnoreCase(config.getBridgeAddress())){
+                tranBool = true;
+            }
+            if(tranBool){
                 TransactionReceipt receipt = ApiChain.getTransactionData(transaction.getHash(),chainRpc);
                 if(receipt!=null && receipt.getStatus().equals("0x1")){
                     List<Log> logs = receipt.getLogs();
@@ -120,11 +126,11 @@ public class EthServiceImpl implements EthService {
                             Thread thread = new Thread(task);
                             thread.start();
                         }else if(event.equalsIgnoreCase(ContractConstant.Transferred)){//跨链交易完成事件
-                            ordersService.completeOrder(log,transaction);
+                            ordersService.completeOrder(log,transaction,chainId);
                         }else if(event.equalsIgnoreCase(ContractConstant.OrderConsumed)){// 跨链交易事件--to
-                            ordersService.orderConsumed(log,transaction);
+                            ordersService.orderConsumed(log,transaction,chainId);
                         }else if(event.equalsIgnoreCase(ContractConstant.OrderCanceled)){//订单取消事件
-                            ordersService.orderCanceled(log,transaction);
+                            ordersService.orderCanceled(log,transaction,chainId);
                         }else{
                             createTran = false;
                         }
@@ -148,7 +154,7 @@ public class EthServiceImpl implements EthService {
     /**
      * 遍历之前null的区块
      */
-    private void checkBlockNullData(Integer chainId,String chainName,String contractAddress,Web3j chainRpc){
+    private void checkBlockNullData(Integer chainId,String chainName,Config config,Web3j chainRpc){
         String redisBlock = RedisConstant.BLOCK_HEIGHT+chainName;
         try{
             List<String> getList = redisTemplate.opsForList().range(redisBlock, 0, -1);
@@ -164,7 +170,7 @@ public class EthServiceImpl implements EthService {
                         blockNullList.add(blockNumber);
                         continue;
                     }
-                    this.getBlockTransaction(block,BigInteger.valueOf(Long.valueOf(blockNumber)),contractAddress,chainRpc,chainId);
+                    this.getBlockTransaction(block,config,chainRpc,chainId);
                 }
                 //保存获取空的区块下次循环在遍历
                 if(blockNullList.size()>0){

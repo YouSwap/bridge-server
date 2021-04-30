@@ -22,6 +22,12 @@
         `orders` o
     WHERE
         sender = #{orders.sender}
+        <if test="orders.fromChainId != null and orders.fromChainId != ''">
+            AND fromChainId = #{orders.fromChainId}
+        </if>
+        <if test="orders.toChainId != null and orders.toChainId != ''">
+            AND toChainId = #{orders.toChainId}
+        </if>
     ORDER BY o.id desc;
     </select>
 </mapper>

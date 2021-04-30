@@ -1,4 +1,4 @@
-package you.chain.heco;
+package you.chain.bsc;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.EnableScheduling;
@@ -9,7 +9,7 @@ import you.manage.service.OrdersService;
 
 @Component
 @EnableScheduling
-public class HecoTask {
+public class BscTask {
     @Autowired
     private EthService ethService;
     @Autowired
@@ -19,7 +19,7 @@ public class HecoTask {
      */
     @Scheduled(cron="0/3 * * * * ?")
     public void monitor() {
-        ethService.initMonitor(2,"HECO");
+        ethService.initMonitor(3,"BSC");
     }
 
     /**
@@ -27,6 +27,6 @@ public class HecoTask {
      */
     @Scheduled(cron="0/5 * * * * ?")
     public void exchangeConfirm() {
-        ordersService.exchangeConfirm(2);
+        ordersService.exchangeConfirm(3);
     }
 }

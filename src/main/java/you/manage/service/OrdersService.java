@@ -17,13 +17,13 @@ public interface OrdersService extends IService<Orders> {
 
     List<Orders> findOrders(Orders Orders);
 
-    List<OrderList> findList(String sender);
+    List<OrderList> findList(String sender,String fromChainId,String toChainId);
 
     void createOrders(Orders Orders);
 
     void updateOrders(Orders Orders);
 
-    Orders getOrderId(Long orderId);
+    Orders getOrderId(Long orderId, Integer chainId,Integer toChainId);
     Orders getOrderState(Integer state);
     /**
      * 订单入库
@@ -48,21 +48,21 @@ public interface OrdersService extends IService<Orders> {
      * @param log
      * @param transaction
      */
-    void orderConsumed(Log log, EthBlock.TransactionObject transaction);
+    void orderConsumed(Log log, EthBlock.TransactionObject transaction,Integer chainId);
 
     /**
      * 设置交易完成事件
      * @param log
      * @param transaction
      */
-    void completeOrder(Log log, EthBlock.TransactionObject transaction);
+    void completeOrder(Log log, EthBlock.TransactionObject transaction,Integer chainId);
 
     /**
      * 订单取消事件
      * @param log
      * @param transaction
      */
-    void orderCanceled(Log log, EthBlock.TransactionObject transaction);
+    void orderCanceled(Log log, EthBlock.TransactionObject transaction,Integer chainId);
 
     /**
      * 交易确认数
@@ -73,7 +73,7 @@ public interface OrdersService extends IService<Orders> {
     /**
      * 设置订单为已完成
      */
-    void completeOrder();
+    void completeCrossOrder();
     void startCompleteOrder(RabbitTableInitRequest rr);
 
     /**

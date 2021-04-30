@@ -24,8 +24,10 @@ public class ApiController {
     public JsonResult getOrderList(HttpServletRequest request){
         JsonResult jsonResult = new JsonResult();
         String sender = request.getParameter("sender");
+        String fromChainId = request.getParameter("fromChainId");
+        String toChainId = request.getParameter("toChainId");
         if(StringUtils.isNotBlank(sender)){
-            List<OrderList> list = ordersService.findList(sender);
+            List<OrderList> list = ordersService.findList(sender,fromChainId,toChainId);
             jsonResult.setObj(list);
             jsonResult.setCode(ReturnEnum.CONSTANT_SUCCESS.getCode());
             jsonResult.setMsg(ReturnEnum.CONSTANT_SUCCESS.getMessage());

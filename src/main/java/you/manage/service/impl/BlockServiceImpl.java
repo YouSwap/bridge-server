@@ -76,6 +76,7 @@ public class BlockServiceImpl extends ServiceImpl<BlockMapper, Block> implements
         BigInteger upHeight = block.getNumber().subtract(new BigInteger("1"));
         QueryWrapper<Block> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("height",upHeight);
+        queryWrapper.eq("chainId",chainId);
         queryWrapper.orderByDesc("id");
         List<Block> bk = this.baseMapper.selectList(queryWrapper);//查询list防止回退区块入库多个相同区块高度信息
         Block blockItem  = new Block();
@@ -84,6 +85,7 @@ public class BlockServiceImpl extends ServiceImpl<BlockMapper, Block> implements
             Block blockInfo = bk.get(0);
             //当前区块parentHash和上个区块 hash不一致 继续保存上一个区块信息
             if(!blockInfo.getHash().equalsIgnoreCase(block.getParentHash())){
+                System.out.println("11111");
                 this.createBlock(blockInfo);
                 addFalse = false;
             }
